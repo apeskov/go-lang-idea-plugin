@@ -26,6 +26,7 @@ import com.goide.psi.GoPsiTreeUtil;
 import static com.goide.GoTypes.*;
 import com.goide.stubs.GoTypeStub;
 import com.goide.psi.*;
+import com.intellij.util.ThreeState;
 import com.intellij.psi.stubs.IStubElementType;
 
 public class GoTypeImpl extends GoStubbedElementImpl<GoTypeStub> implements GoType {
@@ -60,6 +61,11 @@ public class GoTypeImpl extends GoStubbedElementImpl<GoTypeStub> implements GoTy
 
   public boolean shouldGoDeeper() {
     return GoPsiImplUtil.shouldGoDeeper(this);
+  }
+
+  @NotNull
+  public ThreeState isAssignableFrom(GoType right) {
+    return GoPsiImplUtil.isAssignableFrom(this, right);
   }
 
 }

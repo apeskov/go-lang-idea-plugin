@@ -18,11 +18,15 @@ package com.goide.psi.impl;
 
 import com.goide.GoConstants;
 import com.goide.psi.*;
+import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiNamedElement;
 import com.intellij.psi.PsiReference;
+import com.intellij.psi.SyntaxTraverser;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.Function;
+import com.intellij.util.ThreeState;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -264,5 +268,101 @@ public class GoTypeUtil {
   @NotNull
   private static GoType getGoType(@Nullable GoTypeOwner element, @NotNull PsiElement context) {
     return getInterfaceIfNull(element != null ? element.getGoType(null) : null, context);
+  }
+
+  @NotNull
+  public static ThreeState isAssignable(@NotNull GoType left, @Nullable GoType right) {
+    if (right == null) return ThreeState.NO;
+    if (left == right || left.equals(right)) return ThreeState.YES;
+
+    if (identical(left, right)) return ThreeState.YES;
+
+    // todo: and at least one of V or T is not a named type
+    if (identical(left.getUnderlyingType(), right.getUnderlyingType())) {
+      return ThreeState.YES; // x's type V and T have identical underlying types and at least one of V or T is not a named type.
+    }
+    
+    /*
+    Assignability
+    
+    A value x is assignable to a variable of type T ("x is assignable to T") in any of these cases:
+    
+    x's type is identical to T.
+    x's type V and T have identical underlying types and at least one of V or T is not a named type.
+    T is an interface type and x implements T.
+    x is a bidirectional channel value, T is a channel type, x's type V and T have identical element types, and at least one of V or T is not a named type.
+    x is an untyped constant representable by a value of type T.
+    */
+
+    return ThreeState.UNSURE;
+  }
+
+  public static boolean identical(@Nullable GoType left, @Nullable GoType right) {
+    if (left == null || right == null) return false;
+    if (left instanceof GoSpecType) {
+      return right instanceof GoSpecType && left.isEquivalentTo(right);
+    }
+    if (left instanceof GoArrayOrSliceType) {
+      // todo: length
+      return right instanceof GoArrayOrSliceType && identical(((GoArrayOrSliceType)left).getType(), ((GoArrayOrSliceType)right).getType());
+    }
+    if (left instanceof GoStructType) {
+      // todo
+      // Two struct types are identical if they have the same sequence of fields, and if corresponding fields have the same names, and identical types, and identical tags. Two anonymous fields are considered to have the same name. Lower-case field names from different packages are always different.
+      return right instanceof GoStructType && identicalStructs((GoStructType)left, (GoStructType)right);
+    }
+    if (left instanceof GoPointerType) {
+      return right instanceof GoPointerType && identical(((GoPointerType)left).getType(), ((GoPointerType)right).getType());
+    }
+    if (left instanceof GoFunctionType) {
+      // todo
+      // Two function types are identical if they have the same number of parameters and result values, corresponding parameter and result types are identical, and either both functions are variadic or neither is. Parameter and result names are not required to match.
+      return right instanceof GoFunctionType;
+    }
+    if (left instanceof GoInterfaceType) {
+      // todo
+      // Two interface types are identical if they have the same set of methods with the same names and identical function types.
+      // Lower-case method names from different packages are always different. The order of the methods is irrelevant.
+      // todo: T is an interface type and x implements T
+      return right instanceof GoInterfaceType;
+    }
+    if (left instanceof GoMapType) {
+      return right instanceof GoMapType
+             && identical(((GoMapType)left).getKeyType(), ((GoMapType)right).getKeyType())
+             && identical(((GoMapType)left).getValueType(), ((GoMapType)right).getValueType());
+    }
+    if (left instanceof GoChannelType) {
+      // todo: and the same direction
+      return right instanceof GoChannelType && identical(((GoChannelType)left).getType(), ((GoChannelType)right).getType());
+    }
+    if (Comparing.equal(left.getUnderlyingType(), right.getUnderlyingType())) return true;
+
+    // GoReceiverType, GoCType, GoTypeList 
+
+    return false;
+  }
+
+  private static boolean identicalStructs(@NotNull GoStructType left, @NotNull GoStructType right) {
+    List<GoNamedElement> l = SyntaxTraverser.psiTraverser(left).filter(GoNamedElement.class).toList();
+    List<GoNamedElement> r = SyntaxTraverser.psiTraverser(right).filter(GoNamedElement.class).toList();
+    if (l.size() != r.size()) return false;
+    List<String> lNames = ContainerUtil.map(l, PsiNamedElement::getName);
+    List<String> rNames = ContainerUtil.map(r, PsiNamedElement::getName);
+    if (!ContainerUtil.equalsIdentity(lNames, rNames)) return false;
+
+    for (int i = 0; i < l.size(); i++) {
+      GoNamedElement f = l.get(i);
+      GoNamedElement s = r.get(i);
+      if (f instanceof GoFieldDefinition) {
+        if (!(s instanceof GoFieldDefinition)) return false;
+        if (!identical(f.getGoType(null), s.getGoType(null))) return false;
+      }
+      if (f instanceof GoAnonymousFieldDefinition) {
+        if (!(s instanceof GoAnonymousFieldDefinition)) return false;
+        if (!identical(((GoAnonymousFieldDefinition)f).getTypeReferenceExpression().resolveType(), 
+                       ((GoAnonymousFieldDefinition)s).getTypeReferenceExpression().resolveType())) return false;
+      }
+    }
+    return true;
   }
 }

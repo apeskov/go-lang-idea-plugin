@@ -22,6 +22,7 @@ import org.jetbrains.annotations.*;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.StubBasedPsiElement;
 import com.goide.stubs.GoTypeStub;
+import com.intellij.util.ThreeState;
 
 public interface GoType extends GoCompositeElement, StubBasedPsiElement<GoTypeStub> {
 
@@ -32,5 +33,8 @@ public interface GoType extends GoCompositeElement, StubBasedPsiElement<GoTypeSt
   GoType getUnderlyingType();
 
   boolean shouldGoDeeper();
+
+  @NotNull
+  ThreeState isAssignableFrom(GoType right);
 
 }

@@ -22,6 +22,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.impl.light.LightElement;
 import com.intellij.psi.stubs.IStubElementType;
+import com.intellij.util.ThreeState;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -45,6 +46,12 @@ public abstract class GoLightType<E extends GoCompositeElement> extends LightEle
   @Override
   public boolean shouldGoDeeper() {
     return false;
+  }
+
+  @NotNull
+  @Override
+  public ThreeState isAssignableFrom(GoType right) {
+    return GoPsiImplUtil.isAssignableFrom(this, right);
   }
 
   @Override
